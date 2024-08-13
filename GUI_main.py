@@ -5205,13 +5205,13 @@ class CandidatePreview(QWidget):
                     events = events.replace([np.inf, -np.inf], np.nan).dropna()
                     
                     if 2 in polarity_option: # mixed polarity case
-                        parent.data['AveragePSFmix'] = pd.concat([parent.data['AveragePSFmix'], events], ignore_index=True)
+                        fullAvgPSF['mix'] = pd.concat([fullAvgPSF['mix'], events], ignore_index=True)
                     else: # seperate polarity case
                         if all(events['p'] == 1):
                             #append all entries in events to sumalleventspos:
-                            parent.data['AveragePSFpos'] = pd.concat([parent.data['AveragePSFpos'], events], ignore_index=True)
+                            fullAvgPSF['pos'] = pd.concat([fullAvgPSF['pos'], events], ignore_index=True)
                         elif all(events['p'] == 0):
-                            parent.data['AveragePSFneg'] = pd.concat([parent.data['AveragePSFneg'], events], ignore_index=True)
+                            fullAvgPSF['neg'] = pd.concat([fullAvgPSF['neg'], events], ignore_index=True)
             
             
             #Store this as pickle:
