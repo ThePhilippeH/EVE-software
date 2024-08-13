@@ -4876,6 +4876,10 @@ class CandidatePreview(QWidget):
         self.average_candidate_button = QPushButton("Average candidate")
         self.average_candidate_button.clicked.connect(lambda: self.average_candidate_callback(parent))
         canPreviewtab_horizontal_container.addWidget(self.average_candidate_button)
+        
+        self.adv_average_candidate_button = QPushButton("Store Advanced avg. candidate")
+        self.adv_average_candidate_button.clicked.connect(lambda: self.adv_average_candidate_popup_callback(parent))
+        canPreviewtab_horizontal_container.addWidget(self.adv_average_candidate_button)
 
         self.candidate_info = QLabel('')
         self.mainlayout.addWidget(self.candidate_info)
@@ -5114,6 +5118,106 @@ class CandidatePreview(QWidget):
             return moduleMethodEvalTexts[0]
         else:
             return None
+        
+    def adv_average_candidate_popup_callback(self,parent):
+        #create a small popup:
+            
+        window = utils.SmallWindow(parent,windowTitle="Store advanced average candidate")
+        window.addDescription("Calculate and store an 'advanced' average candidate. Keep in mind that this will take quite some time: ~ 10x longer than the normal average candidate. You can limit this by setting a max nr candidates if you want")
+        
+        maxNrCandidates = window.addTextEdit(labelText="MaxNrCandidates:",preFilledText="100000")
+        StoreLoc = window.addFileLocation(labelText="Store location:", textAddPrePeriod = "_advAvgCandidate",textPostPeriod="pickle")
+        
+        
+        button = window.addButton("Run")
+        button.clicked.connect(lambda: self.adv_average_candidate_callback(parent,storeLoc=StoreLoc.text(),maxnrcandidates = int(maxNrCandidates.text())))
+        
+        window.show()
+
+    def adv_average_candidate_callback(self,parent,storeLoc="",maxnrcandidates=1e9):
+        #Check if storeLoc ends in .pickle, otherwise add it:
+        if storeLoc[-7:]!= '.pickle':
+            storeLoc = storeLoc + '.pickle'
+            
+        if 'FindingMethod' in parent.data:
+            logging.debug(f"Attempting to calculate and store advanced average candidate.")
+            pxsize = float(parent.globalSettings['PixelSize_nm']['value'])
+
+            # get polarity options
+            polarity_option = list(parent.data['FittingResult'][0].groupby('p').groups.keys())
+
+            import copy
+            # parameter initialization
+            
+            fullAvgPSF = {}
+            fullAvgPSF['pos'] = {}
+            fullAvgPSF['neg'] = {}
+            fullAvgPSF['mix'] = {}
+            
+            maxNrCandidates = min(maxnrcandidates,len(parent.data['FittingResult'][0]))
+            for loc in range(0,maxNrCandidates):
+                if np.mod(loc,100) == 0:
+                    logging.info(f"Currently at: {loc} of {maxNrCandidates}, or {100*loc/maxNrCandidates:.2f}%")
+                if parent.data['FittingResult'][0].iloc[loc]['fit_info'] != '':
+                    continue
+                else: 
+    
+                    candidate_id = parent.data['FittingResult'][0].iloc[loc]['candidate_id']
+                    candidate = parent.data['FindingResult'][0][candidate_id]
+                    eventsRaw = candidate['events'].copy()
+
+                    eventsRaw['event_id'] = np.arange(1, len(eventsRaw) + 1)
+                    eventsRaw['candidate_id'] = candidate_id
+                    eventsRaw['pixel_incident_count'] = 0
+                    eventsRaw['pixel_incidence_tot'] = 0
+                    eventsRaw['t_delay'] = 0
+
+                    eventsRaw.sort_values(by='t', inplace=True)
+                    
+                    #Extract the indeces of each indiv pixel:
+                    pixel_indices = eventsRaw.groupby(['x', 'y']).groups
+                    
+                    for (x, y), indices in pixel_indices.items():
+                        # Process each pixel# Process each pixel
+                        pixel_events = eventsRaw.loc[indices]
+                        n_px_events = len(pixel_events)
+                        
+                        # Use loc to set values for all indices at once
+                        eventsRaw.loc[indices, 'pixel_incidence_tot'] = n_px_events
+                        
+                        # Sort pixel events by time
+                        pixel_events_sorted = pixel_events.sort_values('t')
+                        
+                        # Calculate pixel_incidence_count and t_delay
+                        eventsRaw.loc[indices, 'pixel_incident_count'] = range(1, int(n_px_events) + 1)
+                        eventsRaw.loc[indices[1:], 't_delay'] = pixel_events_sorted['t'].diff().values[1:]
+
+    
+                    # eventsRaw.sort_values(by=['x','y','t'], inplace=True)
+
+                    # Vectorized operations for final adjustments
+                    fit_result = parent.data['FittingResult'][0].iloc[loc]
+                    eventsRaw['x'] -= fit_result['x'] / pxsize
+                    eventsRaw['y'] -= fit_result['y'] / pxsize
+                    eventsRaw['t'] -= fit_result['t'] * 1000
+
+                    events = eventsRaw
+                    events = events.replace([np.inf, -np.inf], np.nan).dropna()
+                    
+                    if 2 in polarity_option: # mixed polarity case
+                        parent.data['AveragePSFmix'] = pd.concat([parent.data['AveragePSFmix'], events], ignore_index=True)
+                    else: # seperate polarity case
+                        if all(events['p'] == 1):
+                            #append all entries in events to sumalleventspos:
+                            parent.data['AveragePSFpos'] = pd.concat([parent.data['AveragePSFpos'], events], ignore_index=True)
+                        elif all(events['p'] == 0):
+                            parent.data['AveragePSFneg'] = pd.concat([parent.data['AveragePSFneg'], events], ignore_index=True)
+            
+            
+            #Store this as pickle:
+            # picklePath = "\\\\IFMB-NAS\\AG Endesfelder\\Data\\Koen\\Scientific\\EBS_data\\aTub-AF647 normal density 2022-05-04\\AveragePSF.pickle"
+            with open(storeLoc, 'wb') as f: 
+                pickle.dump(fullAvgPSF, f)
 
     def average_candidate_callback(self, parent):
         if 'FindingMethod' in parent.data:
@@ -5124,7 +5228,7 @@ class CandidatePreview(QWidget):
             polarity_option = list(parent.data['FittingResult'][0].groupby('p').groups.keys())
 
             import copy
-            
+                        
             #We loop over all localizations:
             if len(parent.data['AveragePSFmix']) == 0 and len(parent.data['AveragePSFpos']) == 0 and len(parent.data['AveragePSFneg']) == 0:
                 # parameter initialization
@@ -5140,6 +5244,7 @@ class CandidatePreview(QWidget):
                     if parent.data['FittingResult'][0].iloc[loc]['fit_info'] != '':
                         continue
                     else: 
+                        
                         #we grab its candidate id:
                         candidate_id = parent.data['FittingResult'][0].iloc[loc]['candidate_id']
                         #We find the corresponding candidate from findingResult:
@@ -5177,7 +5282,6 @@ class CandidatePreview(QWidget):
                     parent.data['avg_cluster_size_neg'] /= parent.data['avg_candidates_neg']
                     parent.data['AveragePSFneg'].sort_values(by='t', inplace=True)
                     # parent.data['AveragePSFneg'].to_csv('C:\\Data\\EBS\\AveragePSF_GaussianT\\AveragePSF_neg.csv', index=False, header=True)
-            average_loc = pd.DataFrame({'x': [0], 'y': [0], 't': [0]})
             
             # First clear text and figures
             self.candidate_info.setText('')

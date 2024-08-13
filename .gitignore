@@ -11,3 +11,5 @@ build\*
 /.vscode
 /PyPI/v010
 /PyPI/v011
+/PyPI
+/dist

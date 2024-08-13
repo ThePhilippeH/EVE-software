@@ -1404,6 +1404,18 @@ class SmallWindow(QMainWindow):
             except:
                 pass
         lineedit.setText(LineEditText)
+        
+    #change the text after the period
+    def changeTextPostPeriod(self,lineedit,LineEditText,textPostPeriod = ""):
+        #Add the textAddPrePriod directly before the last found period in the LineEditText:
+        if textPostPeriod != "":
+            try:
+                LineEditText = LineEditText.split('.')
+                LineEditText[-1] = textPostPeriod
+                LineEditText = '.'.join(LineEditText)
+            except:
+                pass
+        lineedit.setText(LineEditText)
     
     def addMarkdown(self,mdfile,width=700,height=800):
         newlayout = QVBoxLayout()
@@ -1499,7 +1511,7 @@ class SmallWindow(QMainWindow):
         return self.textEdit
     
     #Add a file information label/text/button:
-    def addFileLocation(self, labelText="File location:", textAddPrePeriod = ""):
+    def addFileLocation(self, labelText="File location:", textAddPrePeriod = "", textPostPeriod = ""):
         #Create a horizontal box layout:
         layout = QHBoxLayout()
         #add a label, line edit and button:
@@ -1508,6 +1520,8 @@ class SmallWindow(QMainWindow):
         LineEditText = self.parent.dataLocationInput.text()
         
         self.addTextPrePriod(self.fileLocationLineEdit,LineEditText,textAddPrePeriod)
+        LineEditText = self.fileLocationLineEdit.text()
+        self.changeTextPostPeriod(self.fileLocationLineEdit,LineEditText,textPostPeriod)
         
         self.fileLocationButton = QPushButton("...")
         self.fileLocationButton.clicked.connect(lambda: self.openFileDialog(fileArgs = "All Files (*)"))
