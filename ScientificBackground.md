@@ -17,6 +17,7 @@
         - [Model function](#model-function)
         - [Calibration](#calibration)
         - [Estimating the axial position](#estimating-the-axial-position)
+    - [3D Astigmatic Logarithmic Gaussian](#d-astigmatic-logarithmic-gaussian)
     - [Phasor-based Fitting](#phasor-based-fitting)
     - [Radial Symmetry Fitting](#radial-symmetry-fitting)
     - [Temporal fitting](#temporal-fitting)
@@ -35,7 +36,7 @@
 # Introduction
 EVE is a software platform developed for the analysis of single-molecule imaging data captured by event-based sensors. The software is methodically divided into three integral modules, each serving a distinct purpose in the data analysis pipeline for event-based single-molecule data.
 
-1. **Candidate Finding:** This initial module is responsible for identifying and isolating potential single-molecule signals within the event data. It effectively filters the raw input to extract candidate events for further analysis.
+1. **Candidate Finding:** This initial module is responsible for identifying and isolating potential single-molecule signals within the EBS data. It effectively filters the raw input to extract candidate events for further analysis.
 2. **Candidate Fitting:** Once candidates are identified, this module precisely (sub-pixel) localizes the single molecules spatiotemporally. 
 3. **Post-Processing and Evaluation:** This module includes various routines to modify and interpret the data.
 
@@ -56,7 +57,7 @@ These two Eigenfeatures are combined to discriminate between signal and noise in
 ## 2. DBSCAN-based cluster finding
 Density-based spatial clustering of applications with noise (DBSCAN) is an algorithm which clusters points based on their local density, and is routinely used in SMLM data analysis [@martens_raw_2022]. To save computation time for the DBSCAN algorithm, we remove most noise in two steps. First, (only in the case of analysing positive and negative events together), we filter out events that show either an on-to-off-event or off-to-on-event sequence per pixel (Supplementary Figure \ref{fig:DBSCAN} a, b). This is based on the rationale that single-molecule emissions usually trigger a sequence of multiple, consecutive on-events while turning on (and a sequence of multiple off-events when going dark) and thus trigger several thresholds and therefore show event sequences of the same polarity. Noise, on the other hand, is more likely to fluctuate around an on average constant background level, resulting in polarity-switching on-to-off and off-to-on event sequences. Second, for each event, a neighbor count is performed within a set spatiotemporal radius and compared against the average data density of the entire dataset (Supplementary Figure \ref{fig:DBSCAN} c). Only events which have at least N (user-definable) times more neighbors than average remain, others are discarded. This ‘high-density dataset’ is then processed via DBSCAN with user-definable radius and minimum cluster points, to obtain single clusters for each single-molecule emission (Supplementary Figure \ref{fig:DBSCAN} d). The bounding boxes of this cluster (optionally plus an additional area of user-defined spatiotemporal size) are then used to extract all, unfiltered events (i.e. raw events except hot-pixels, which are removed by a filter for consecutive > 30 positive or negative events) in this bounding box. These final candidate are passed on for sub-pixel localization.
 
-![Schematic representation of the DBSCAN-based finding routine. a. Raw event data in a certain spatiotemporal area. b. Consecutive event-filtering, where only on-to-on and off-to-off sequences of events remain. c. Filtering for events that have a density higher than 1.5 times the average density in a [240 nm; 40 ms] radius. d. Clusters obtained when running the DBSCAN algorithm on the data in c with radius of 6 and minimum cluster points of 15.](Markdown_info/SciBG_DBSCAN.png){#fig:DBSCAN}
+![Schematic representation of the DBSCAN-based finding routine. a. Raw EBS data in a certain spatiotemporal area. b. Consecutive event-filtering, where only on-to-on and off-to-off sequences of events remain. c. Filtering for events that have a density higher than 1.5 times the average density in a [240 nm; 40 ms] radius. d. Clusters obtained when running the DBSCAN algorithm on the data in c with radius of 6 and minimum cluster points of 15.](Markdown_info/SciBG_DBSCAN.png){#fig:DBSCAN}
 
 
 ## 3. Frame-based finding
@@ -68,7 +69,7 @@ All fitting methods aim to determine the x-, y- (,z-) and t-coordinates for each
 ## 1. Fitting distributions
 Besides directly analyzing the event point cloud data associated with a candidate (Supplementary Figure \ref{fig:fittingDistr} a), it is also possible to reduce the data to a two-dimensional distribution, e.g. by counting all events per pixel (Supplementary Figure \ref{fig:fittingDistr} b), by only taking the time of the first events per pixel (Supplementary Figure \ref{fig:fittingDistr} c) or by calculating the mean time delay between all events per pixel (see Supplementary Figure \ref{fig:fittingDistr} d). These distributions can then be fitted by a conventional two-dimensional function, e.g. a Gaussian, to obtain the x,y(,z) localization. 
 
-![Fitting distributions that can be derived from the event data. a. Event point cloud belonging to a candidate.  b. Total number of events per pixel. c. Time of the first event per pixel (pixels with 0 events cannot be evaluated). d. Mean time delay between all events per pixel (pixels with less than 2 events cannot be evaluated).](Markdown_info/SciBG_cluster.png){#fig:fittingDistr}
+![Fitting distributions that can be derived from the EBS data. a. Event point cloud belonging to a candidate.  b. Total number of events per pixel. c. Time of the first event per pixel (pixels with 0 events cannot be evaluated). d. Mean time delay between all events per pixel (pixels with less than 2 events cannot be evaluated).](Markdown_info/SciBG_cluster.png){#fig:fittingDistr}
 
 
 Within EVE, we separated the creation of the two-dimensional distribution from the fitting of this distribution. This allows a very flexible combination of both, method and distribution, to achieve the most accurate localization result by fully evaluating and exploiting the information stored in a candidate cluster. Two-dimensional fitting routines can be chosen from: Mean X,Y position; Gaussian; logarithmic Gaussian; astigmatic Gaussian and Phasor routines. Two-dimensional distributions can be chosen from: The time of the first event; the total number of events; the average/median time of all events for each pixel; the average/minimum/maximum time delay between events for each pixel. 
@@ -79,14 +80,14 @@ The average X,Y fitting method calculates the average x,y position for the chose
 ## 3. 2D Gaussian
 Analogous to conventional frame-based SMLM [@stallinga_accuracy_2010; @mortensen_optimized_2010] a 2D Gaussian least-square fit with variable x- and y-width ($\sigma_x$, $\sigma_y$) is implemented in EVE: 
 
-$$\Large pdf(x,y)=A_1\cdot e^{-{(x-x_0)^2\over2\sigma_x^2} +{(y-y_0)^2\over2\sigma_y^2}}+A_2$$
+$$\Large pdf(x,y)=A_1\cdot e^{-{(x-x_0)^2\over2\sigma_x^2} -{(y-y_0)^2\over2\sigma_y^2}}+A_2$$
 
-$A_{1-3}$ are the amplitudes of each term. The  ($x_0$,  $y_0$) - localization uncertainties given by the fit are used as a tolerance measure to discard imprecise fits where the fit uncertainty is larger than a user-definable factor times the pixel-size. A temporal fitting method has to be selected separately. 
+$A_{1,2}$ are the amplitudes of each term. The  ($x_0$,  $y_0$) - localization uncertainties given by the fit are used as a tolerance measure to discard imprecise fits where the fit uncertainty is larger than a user-definable factor times the pixel-size. A temporal fitting method has to be selected separately. 
 
 ## 4. 2D Logarithmic Gaussian
 Due to the logarithmic nature of consecutive events a 2D logarithmic Gaussian fit was implemented similar to the 2D Gaussian fit:
 
-$$\Large pdf(x,y)=A_1\cdot log(1 + e^{-{(x-x_0)^2\over2\sigma_x^2} +{(y-y_0)^2\over2\sigma_y^2}})+A_2$$
+$$\Large pdf(x,y)=A_1\cdot log(1 + e^{-{(x-x_0)^2\over2\sigma_x^2} -{(y-y_0)^2\over2\sigma_y^2}})+A_2$$
 
 Again, the  ($x_0$,  $y_0$) - localization uncertainties given by the fit are used as a tolerance measure to discard imprecise fits where the fit uncertainty is larger than a user-definable factor times the pixel-size. A temporal fitting method has to be selected separately.
 
@@ -97,7 +98,7 @@ In this method, spatial and temporal fitting are separated again, so that an add
 ### 5.1. Model function
 A rotated elliptical Gaussian function with rotation angle $\phi$ is used to represent the astigmatic PSF:
 
-$$\Large pdf(x,y)=A_1\cdot e^{-{\hat{x}^2\over2\sigma_{\hat{x}}^2} +{\hat{y}^2\over2\sigma_{\hat{y}}^2}}+A_2$$
+$$\Large pdf(x,y)=A_1\cdot e^{-{\hat{x}^2\over2\sigma_{\hat{x}}^2} -{\hat{y}^2\over2\sigma_{\hat{y}}^2}}+A_2$$
 
 where $A_{1,2}$ are amplitude terms, $\sigma_{x,y}$ are the imaged widths of the molecule along two perpendicular axes rotated by $\phi$ with respect to the x,y-axes and x,y are defined by:
 
@@ -123,21 +124,30 @@ $$
 
 The z-uncertainty is determined via the inverse Hessian matrix returned by the minimization routine.
 
-## 6. Phasor-based Fitting
+## 6. 3D Astigmatic Logarithmic Gaussian
+Due to the logarithmic nature of consecutive events a 3D astigmatic logarithmic Gaussian fit was implemented similar to the 3D astigmatic Gaussian fit with a slightly modified model function:
+
+$$\Large pdf(x,y)=A_1\cdot log(1 + e^{-{\hat{x}^2\over2\sigma_{\hat{x}}^2} -{\hat{y}^2\over2\sigma_{\hat{y}}^2}})+A_2$$
+
+where $A_{1,2}$ are amplitude terms, $\sigma_{x,y}$ are the imaged widths of the molecule along two perpendicular axes rotated by $\phi$ with respect to the x,y-axes and x,y as in section 5.1.
+
+Apart from the other model function, the procedure is analogous to the steps descriped in section 5.
+
+## 7. Phasor-based Fitting
 The phasor-based fitting routine is directly adapted from the pSMLM fitting for camera-based SMLM data [@martens_phasor_2018]. Briefly, the algorithm converts the 2D distribution to two phase vectors (or phasors) by calculating the first Fourier coefficients in x and y. The angles of these phasors are used to localize the center of the event distribution.
 
 This concept can be expanded to the third dimension if a temporal binning is employed as well as a spatial binning.
 
-## 7. Radial Symmetry Fitting
+## 8. Radial Symmetry Fitting
 
 This fitting routine is an adapted version of the calculation of the radial symmetry centers for localization described in [@parthasarathy_rapid_2012]. The general idea is to estimate the center of radially symmetric intensity distributions, by tracing lines parallel to the image gradients in each point, where the distance of all lines is minimal at the center. This approach does not require knowledge of the exact shape of the distribution.
 In the two-dimensional version, an array of event numbers per pixel is used instead of an array of pixel intensities. As shown in Supplementary Figure \ref{fig:fittingDistr}, the two-dimensional event distribution also shows a clear radial symmetry. 
 The concept is then expanded to a three-dimensional version in which the events are translated into a three-dimensional histogram of event numbers per voxel. Again the point of maximum radial symmetry can be calculated via the image gradient.
 
-## 8. Temporal fitting
+## 9. Temporal fitting
 The aim of all temporal fitting methods is to get an accurate estimate for the true time of the brightness change. As the response time of sensor depends on imaging, sensor settings and pixel history and thus may be varying during the experiment, the time point of the emerging signal of a cluster as recorded by the sensor is taken as most consistent estimate of the true time.
 
-### 8.1. Lognormal CDF fitting
+### 9.1. Lognormal CDF fitting
 In this temporal fitting method, the cumulative number of events is fitted by a lognormal CDF to obtain the starting time $t_0$ of the candidate cluster. Throughout the data, we observe a wide variety of different temporal profiles for candidate clusters. We therefore chose the cumulative distribution function (CDF) of the lognormal function for fitting, as it allows a large freedom in shape, while a starting time $t_0$ can be estimated consistently. 
 
 $$ \Large
@@ -147,13 +157,13 @@ $$
 To account for background noise, the fit consists of a first term containing the lognormal, and two additional terms that describe a linear dependency following from the assumption that the noise event rate is constant. $A_{1-3}$ are the amplitudes of each term, $erf$ is the Gaussian error function, $t_s$ is the shift of the fitting function, $\mu$ and $\sigma^2$ describe the mean and variance of the underlying normal function. 
 The starting time of the cluster can now be estimated through the intersection of the maximum slope of the fit (gray curve in Supplementary Figure \ref{fig:logNorm1}) and the background model (dashed line in Supplementary Figure \ref{fig:logNorm1}).
 
-![Exemplary representation of lognormal CDF fitting for time estimation. The cumulative number of events (blue) per cluster is fitted by a lognormal cumulative distribution function including a linear background correction model (black). The time (red) can be estimated via intersection of the maximum slope (gray) and background curve (dashed black line).](Markdown_info/SciBG_LogNorm.png){#fig:logNorm1}
+![Exemplary representation of lognormal CDF fitting for time estimation. The cumulative number of events (blue) per cluster is fitted by a lognormal cumulative distribution function including a linear background correction model (black). The time (red) can be estimated via intersection of the maximum slope (gray) and background curve (dashed black line). The light red area indicates the uncertainty of the fitted time.](Markdown_info/SciBG_LogNorm.png){#fig:logNorm1}
 
 Instead of fitting all events, the fit can also be performed for the first events per pixel and candidate (green curve in the Supplementary Figure \ref{fig:logNorm2}), with both fits yielding similar time estimates. However, it should be noted that the first events are very sensitive to the accuracy of the candidate finding method and only contain precise timing information if they are not corrupted by noise signals that occur before the single-molecule emission (leading to the noise events being plotted as first event per pixel). To reduce the noise dependence, each first event can be weighted by the total number of events in each pixel per candidate cluster. 
 
 ![Exemplary representation of lognormal CDF fitting for time estimation of an off-switching event. Both the cumulative number of all events (blue) and the cumulative number of only the first events (green) can be used to estimate the time (red).](Markdown_info/SciBG_AllFirstEvents.png){#fig:logNorm2}
 
-### 8.2. Temporal Gaussian fitting
+### 9.2. Temporal Gaussian fitting
 This fitting routine makes use of the dependency between the absolute change in brightness and the response speed of the sensor: Stronger changes in brightness trigger events earlier than lower changes in brightness, resulting in events with earlier timestamps near the center of the PSF, while events at the edges are triggered later. This radial symmetry of the time of the first events per cluster can be seen exemplified in Supplementary Figure \ref{fig:GaussTime} a. To determine the starting point of the cluster, the two-dimensional distribution of the first events is fitted by a two-dimensional Gaussian curve with variable x- and y-width as depicted in Supplementary Figure \ref{fig:GaussTime} b. The starting time can now be estimated through the temporal peak of the Gaussian fit, which is reached in the center.
 
 ![Exemplary representation of 2D Gaussian fitting for time estimation. a. Time of first event per pixel and candidate, central pixels are activated earlier. b. Two dimensional Gaussian fit (black) of all first events per pixel (green). c. Error map used as weight in the fit. ](Markdown_info/SciBG_2dGaussTime.png){#fig:GaussTime}
@@ -169,7 +179,7 @@ Due to the nature of event-based sensors to report changes in intensity rather t
 Matching of a “positive PSF” with its corresponding “negative PSF” searches for the closest negative PSF neighbor of the positive PSF. Bounds (default 200 nm radius, 0 to 1000 ms time) can be set by the user. Each positive PSF can only ever be linked to a single negative PSF and vice versa.
 
 ### 1.2. Localization precision
-In a static eveSMLM dataset (i.e. considering immobile molecules and ignoring sample drift), the underlying single-molecule location of the positive and negative PSF are identical, or $\Delta_{spatial}=0$. However, in practice, the found localization difference between the positive and negative PSF ($\Delta_{spatial}$) is degraded by the combined localization precision of both positive and negative fitting routines. Nearest-neighbour analysis (NeNA) [@endesfelder_simple_2014] is used to determine the average localization precision of all polarity-matched positive and negative PSFs in the dataset. For this, the $pdf(\Delta_{spatial})$ of all polarity-matched PSFs is fitted with the following function:
+In a static eveSMLM dataset (i.e. considering immobile molecules and ignoring sample drift), the underlying single-molecule location of the positive and negative PSF are identical, or $\Delta_{spatial}=0$. However, in practice, the found localization difference between the positive and negative PSF ($\Delta_{spatial}$) is degraded by the combined localization precision of both positive and negative fitting routines. Nearest-neighbor analysis (NeNA) [@endesfelder_simple_2014] is used to determine the average localization precision of all polarity-matched positive and negative PSFs in the dataset. For this, the $pdf(\Delta_{spatial})$ of all polarity-matched PSFs is fitted with the following function:
 
 $$\Large
 \text{pdf}(\Delta_{spatial}) = A_1 \cdot \left(\frac{\Delta_{spatial}}{2 \cdot \sigma_{\text{SMLM}}^2} \cdot e^{-\frac{\Delta_{spatial}^2}{4 \cdot \sigma_{\text{SMLM}}^2}}\right) + A_2 \cdot \left(\frac{1}{\sqrt{2 \cdot \pi \cdot \omega^2}} \cdot e^{-\frac{(\Delta_{spatial} - d_c)^2}{2 \cdot \omega^2}}\right) + A_3 \cdot \Delta_{spatial}
@@ -182,12 +192,12 @@ In addition to spatial information, the polarity matching also provides temporal
 
 The obtained duration between the positive-event PSF and negative-event PSF via polarity matching ($\Delta_{temporal}$) is broadly categorized in two regimes: 1. Photophysical *on-time* of a single fluorophore (i.e. caused by fluorophore bleaching (STORM, PALM) or target dissociation (PAINT)). This *on-time* is degraded by: 2. Sensor limitations: typical evePSFs have a temporal duration in the order of tens to hundreds of ms, even while the PSF signal is instantaneous. If the photophysical *on-time* of the single emitter is shorter than the evePSF formation, the positive PSF does not have time to fully form, and will as such not be localized correctly. Thus, low-value $\Delta_{temporal}$ are effectively removed from polarity-matching analysis.
 
-The lifetime is estimated as follows (Supplementary Figure \ref{fig:lifetime}): the peak of the $\Delta_{temporal}$ pdf is determined via smoothing of the raw data with a Savitzky-Golay filter, after which an ‘offset’ is determined (default 20% higher than the temporal peak value). The raw data at times longer than this offset are fit with a combination of 1-3 exponential decays (user-definable).
+The fluorescent on-time is estimated as follows (Supplementary Figure \ref{fig:lifetime}): the peak of the $\Delta_{temporal}$ pdf is determined via smoothing of the raw data with a Savitzky-Golay filter, after which an ‘offset’ is determined (default 20% higher than the temporal peak value). The raw data at times longer than this offset are fit with a combination of 1-3 exponential decays (user-definable).
 
-![Showcase of the lifetime obtained via EVE from all emitter *on-times* of a DNA PAINT sample. A single exponential decay (blue line) is fitted to $\Delta_{temporal}$ pdf data (gray) on a linear (left) and logarithmic (right) y-axis. The exponential decay is fitted only in the regime where $\Delta_{temporal}$ is larger than the offset position (red). The single exponential decay fit has a half-time of 88 ± 3.5 ms.](Markdown_info/SciBG_lifetime.png){#fig:lifetime}
+![Showcase of the fluorescent on-time obtained via EVE from all emitter *on-times* of a DNA PAINT sample. A single exponential decay (blue line) is fitted to $\Delta_{temporal}$ pdf data (gray) on a linear (left) and logarithmic (right) y-axis. The exponential decay is fitted only in the regime where $\Delta_{temporal}$ is larger than the offset position (red). The single exponential decay fit has a half-time of 88 ± 3.5 ms.](Markdown_info/SciBG_lifetime.png){#fig:lifetime}
 
 ## 2. Drift correction
-Drift correction on the final localizations can be performed either via redundant cross correlation (RCC) [@martens_raw_2022] or entropy minimization (DME) [@cnossen_drift_2021]. Since RCC and DME are based on the concept of frames, a pseudo-frame-time should be provided for RCC/DME to run.
+Drift correction on the final localizations can be performed either via redundant cross correlation (RCC) [@martens_raw_2022], entropy minimization (DME) [@cnossen_drift_2021] or adaptive intersection maximization [@Ma2024]. Since RCC and DME are based on the concept of frames, a pseudo-frame-time should be provided for RCC/DME to run.
 
 ## 3. Visualisation
 Visualisation of the final localizations [@martens_raw_2022] can be performed via individually rendered Gaussians with a global sigma, or with the sigma provided by the localization precision of each localization. Additionally, linearly interpolated 2D histograms can be created. For all methods, a visualisation pixel size should be provided. 
