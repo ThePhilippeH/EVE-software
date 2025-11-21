@@ -66,6 +66,9 @@ try:
 
     #Obtain eventdistribution functions
     from eve_smlm.EventDistributions import eventDistributions
+    
+    # Import wizard dialog
+    from eve_smlm.WizardDialog import WizardDialog
 except ImportError:
     #Import all scripts in the custom script folders
     # List all files in the CandidateFitting directory
@@ -81,6 +84,9 @@ except ImportError:
 
     #Obtain eventdistribution functions
     from EventDistributions import eventDistributions
+    
+    # Import wizard dialog
+    from WizardDialog import WizardDialog
 
 # -----------------------------------------------------------------------------------------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -289,6 +295,14 @@ class MyGUI(QMainWindow):
     def createToolBar(self):
         menuBar = QMenuBar(self)
         self.setMenuBar(menuBar)
+        
+        # Workflow menu with wizard
+        workflowMenu = menuBar.addMenu("&Workflow")
+        launchWizard = workflowMenu.addAction("Launch Analysis Wizard...")
+        launchWizard.triggered.connect(self.launch_wizard)
+        workflowMenu.addSeparator()
+        workflowMenu.addAction("Standard Interface (Current)")
+        
         settingsMenu = menuBar.addMenu("&Settings")
         openAdvancedSettings = settingsMenu.addAction("Advanced settings")
         openAdvancedSettings.triggered.connect(self.open_advanced_settings)
@@ -328,6 +342,25 @@ class MyGUI(QMainWindow):
         sciBGMenu.triggered.connect(lambda: self.sciBGMenu())
         aboutMenu = helpMenu.addAction("About...")
         aboutMenu.triggered.connect(lambda: self.aboutMenu())
+
+    def launch_wizard(self):
+        """
+        Launch the step-based wizard dialog for simplified workflow
+        """
+        try:
+            wizard = WizardDialog(self)
+            wizard.wizardCompleted.connect(self.on_wizard_completed)
+            wizard.exec_()
+        except Exception as e:
+            logging.error(f"Failed to launch wizard: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to launch wizard: {str(e)}")
+    
+    def on_wizard_completed(self, settings):
+        """
+        Handle wizard completion
+        """
+        logging.info("Wizard completed successfully")
+        logging.debug(f"Wizard settings: {settings}")
 
     def quickStartMenu(self):
         """
@@ -631,11 +664,40 @@ class MyGUI(QMainWindow):
         #Create a grid layout and set it
         tab_layout = QGridLayout()
         self.tab_processing.setLayout(tab_layout)
+        
+        """
+        Wizard Launch Button (Prominent)
+        """
+        wizardButtonLayout = QHBoxLayout()
+        self.wizardLaunchButton = QPushButton("🧙 Launch Analysis Wizard - Simplified Workflow")
+        self.wizardLaunchButton.setStyleSheet("""
+            QPushButton {
+                background-color: #6c7ae0;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 15px;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background-color: #5a68ce;
+            }
+        """)
+        self.wizardLaunchButton.clicked.connect(self.launch_wizard)
+        wizardButtonLayout.addWidget(self.wizardLaunchButton)
+        
+        wizardInfoLabel = QLabel("New users: Start here for a step-by-step guided workflow")
+        wizardInfoLabel.setStyleSheet("color: #666; font-style: italic;")
+        wizardButtonLayout.addWidget(wizardInfoLabel)
+        wizardButtonLayout.addStretch()
+        
+        tab_layout.addLayout(wizardButtonLayout, 0, 0)
+        
         """
         Dataset location and searching Grid Layout
         """
         self.datasetLocation_layout = QGridLayout()
-        tab_layout.addLayout(self.datasetLocation_layout, 0, 0)
+        tab_layout.addLayout(self.datasetLocation_layout, 1, 0)
 
         # Add a label:
         self.datasetLocation_label = QLabel("Dataset location:")
@@ -661,7 +723,7 @@ class MyGUI(QMainWindow):
         self.dataSelectionLayout.setObjectName("groupboxRun")
         self.dataSelectionLayout.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.dataSelectionLayout.setLayout(QGridLayout())
-        tab_layout.addWidget(self.dataSelectionLayout, 1, 0)
+        tab_layout.addWidget(self.dataSelectionLayout, 2, 0)
 
         #Add smaller GridLayouts for Polarity, Time, Position
         self.dataSelectionPolarityLayout = QGroupBox("Polarity")
@@ -735,7 +797,7 @@ class MyGUI(QMainWindow):
 
         self.mainCandidateFindingGroupbox = QGroupBox("Candidate Finding")
         self.mainCandidateFindingGroupbox.setLayout(QGridLayout())
-        tab_layout.addWidget(self.mainCandidateFindingGroupbox, 2, 0)
+        tab_layout.addWidget(self.mainCandidateFindingGroupbox, 3, 0)
 
         names = ['Pos', 'Neg', 'Mix']
         ii = 0
@@ -784,7 +846,7 @@ class MyGUI(QMainWindow):
         """
         self.mainCandidateFittingGroupbox = QGroupBox("Candidate Fitting")
         self.mainCandidateFittingGroupbox.setLayout(QGridLayout())
-        tab_layout.addWidget(self.mainCandidateFittingGroupbox, 3, 0)
+        tab_layout.addWidget(self.mainCandidateFittingGroupbox, 4, 0)
 
         names = ['Pos', 'Neg', 'Mix']
         ii = 0
@@ -851,7 +913,7 @@ class MyGUI(QMainWindow):
         # self.buttonProcessingAbort.clicked.connect(lambda: self.abort_processing())
         # self.runLayout.layout().addWidget(self.buttonProcessingAbort,2,7,1,6)
 
-        tab_layout.addWidget(self.runLayout, 4, 0)
+        tab_layout.addWidget(self.runLayout, 5, 0)
 
         """
         Spacing between things above and things below
@@ -867,7 +929,7 @@ class MyGUI(QMainWindow):
         self.previewLayout.setObjectName("groupboxPreview")
         self.previewLayout.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.previewLayout.setLayout(QGridLayout())
-        tab_layout.addWidget(self.previewLayout, 9, 0)
+        tab_layout.addWidget(self.previewLayout, 10, 0)
 
         #Populate with a start time and end time inputs:
         self.previewLayout.layout().addWidget(QLabel("Start time (ms):"), 0, 0, 1, 1)
